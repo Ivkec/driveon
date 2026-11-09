@@ -1,0 +1,7 @@
+# DriveOn auto škola
+# Sajt je trenutno TEST: svaka stranica ima <meta name="robots" content="noindex, nofollow">.
+# Pretraživači moraju da mogu da otvore stranice da bi videli tu oznaku, zato ovde ništa ne blokiramo.
+User-agent: *
+Allow: /
+
+Sitemap: https://ivkec.github.io/driveon/sitemap.xml
