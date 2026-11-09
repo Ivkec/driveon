@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="140" viewBox="0 0 520 140" role="img" aria-labelledby="title desc">
+  <title id="title">DriveOn auto škola</title>
+  <desc id="desc">DriveOn logo with a stylized road and forward arrow, in white and warm yellow.</desc>
+
+  <!-- Icon -->
+  <g transform="translate(8 10)">
+    <rect x="0" y="0" width="120" height="120" rx="28" fill="#17366F"/>
+    <path d="M35 91 C44 77 48 66 51 53 C54 39 59 27 70 17"
+          fill="none" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round"/>
+    <path d="M75 19 L97 19 L97 41"
+          fill="none" stroke="#F9B936" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M97 19 L76 40"
+          fill="none" stroke="#F9B936" stroke-width="10" stroke-linecap="round"/>
+    <path d="M39 91 C52 85 67 82 85 83"
+          fill="none" stroke="#F9B936" stroke-width="8" stroke-linecap="round"/>
+  </g>
+
+  <!-- Wordmark -->
+  <g font-family="Inter, Montserrat, Arial, sans-serif" font-weight="800" letter-spacing="-2">
+    <!-- "Drive" i "On" u istom redu teksta, da se ne razmaknu kad pregledač nema font Inter -->
+    <text x="150" y="83" font-size="66"><tspan fill="#FFFFFF">Drive</tspan><tspan fill="#F9B936">On</tspan></text>
+  </g>
+  <text x="154" y="111" font-family="Inter, Montserrat, Arial, sans-serif"
+        font-size="13" font-weight="700" letter-spacing="4.2" fill="#AFC5EF">AUTO ŠKOLA</text>
+</svg>
