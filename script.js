@@ -71,29 +71,32 @@
       };
     }
 
+    var frame = box.querySelector("[data-lightbox-frame]");
     var imgEl = box.querySelector("[data-lightbox-img]");
     var tagEl = box.querySelector("[data-lightbox-tag]");
     var titleEl = box.querySelector("[data-lightbox-title]");
     var metaEl = box.querySelector("[data-lightbox-meta]");
     var detailsEl = box.querySelector("[data-lightbox-details]");
     var countEl = box.querySelector("[data-lightbox-count]");
+    var thumbsEl = box.querySelector("[data-lightbox-thumbs]");
+    var captionEl = box.querySelector("[data-lightbox-caption]");
     var closeBtn = box.querySelector("[data-lightbox-close]");
-    var current = 0;
-    var lastFocus = null;
-
     var prevBtn = box.querySelector("[data-lightbox-prev]");
     var nextBtn = box.querySelector("[data-lightbox-next]");
+    var current = 0;
+    var lastFocus = null;
     var vehicle = null;
+    var busy = false;
+    var EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
 
-    function render() {
-      var slides = vehicle.slides;
-      var s = slides[current];
-      var total = slides.length;
-      imgEl.style.animation = "none";
-      void imgEl.offsetWidth;
-      imgEl.style.animation = "";
-      imgEl.src = s.src;
-      imgEl.alt = s.alt;
+    function reduceMotion() {
+      return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    }
+
+    // Tekst ispod/pored slike: naziv i detalji trenutne slike
+    function renderText() {
+      var s = vehicle.slides[current];
+      var total = vehicle.slides.length;
       titleEl.textContent = s.title;
       detailsEl.innerHTML = "";
       s.details.forEach(function (d) {
@@ -102,37 +105,187 @@
         detailsEl.appendChild(li);
       });
       countEl.textContent = total > 1 ? (current + 1) + " / " + total : "";
-      prevBtn.hidden = total < 2;
-      nextBtn.hidden = total < 2;
+      Array.prototype.forEach.call(thumbsEl.children, function (t, i) {
+        t.classList.toggle("is-active", i === current);
+        t.setAttribute("aria-current", i === current ? "true" : "false");
+      });
     }
 
-    function fillInfo() {
-      tagEl.textContent = vehicle.tag;
-      metaEl.textContent = vehicle.meta;
+    function buildThumbs() {
+      thumbsEl.innerHTML = "";
+      var total = vehicle.slides.length;
+      thumbsEl.hidden = total < 2;
+      prevBtn.hidden = total < 2;
+      nextBtn.hidden = total < 2;
+      if (total < 2) return;
+      vehicle.slides.forEach(function (s, i) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "lightbox__thumb";
+        b.setAttribute("aria-label", "Slika " + (i + 1) + ": " + s.title);
+        var im = document.createElement("img");
+        im.src = s.src;
+        im.alt = "";
+        im.width = 72;
+        im.height = 72;
+        b.appendChild(im);
+        b.addEventListener("click", function () { show(i); });
+        thumbsEl.appendChild(b);
+      });
+    }
+
+    // Prelaz: stara slika klizi u stranu i bledi, nova ulazi sa druge strane
+    function show(index, dir) {
+      var total = vehicle.slides.length;
+      index = (index + total) % total;
+      if (index === current || busy) return;
+      if (dir === undefined) dir = index > current ? 1 : -1;
+      current = index;
+      var s = vehicle.slides[current];
+
+      if (reduceMotion() || !imgEl.animate) {
+        imgEl.src = s.src;
+        imgEl.alt = s.alt;
+        renderText();
+        return;
+      }
+
+      busy = true;
+      var old = imgEl.cloneNode();
+      old.removeAttribute("data-lightbox-img");
+      old.setAttribute("aria-hidden", "true");
+      frame.insertBefore(old, imgEl);
+
+      var next = new Image();
+      next.src = s.src;
+      var ready = next.decode ? next.decode().catch(function () {}) : Promise.resolve();
+      ready.then(function () {
+        imgEl.src = s.src;
+        imgEl.alt = s.alt;
+        renderText();
+        var dur = 520;
+        old.animate([
+          { transform: "translateX(0) scale(1)", opacity: 1 },
+          { transform: "translateX(" + (-dir * 35) + "%) scale(0.94)", opacity: 0 }
+        ], { duration: dur, easing: EASE, fill: "forwards" });
+        var anim = imgEl.animate([
+          { transform: "translateX(" + (dir * 60) + "%) scale(1.04)", opacity: 0 },
+          { transform: "translateX(0) scale(1)", opacity: 1 }
+        ], { duration: dur, easing: EASE });
+        captionEl.animate([
+          { transform: "translateY(10px)", opacity: 0 },
+          { transform: "none", opacity: 1 }
+        ], { duration: 380, delay: 120, easing: EASE, fill: "backwards" });
+        anim.onfinish = anim.oncancel = function () {
+          old.remove();
+          busy = false;
+        };
+      });
     }
 
     function go(step) {
-      var total = vehicle.slides.length;
-      if (total < 2) return;
-      current = (current + step + total) % total;
-      render();
+      if (!vehicle || vehicle.slides.length < 2) return;
+      show(current + step, step);
+    }
+
+    var openCard = null;
+    var closing = false;
+
+    // Pravougaonik slike sa kartice, samo ako se kartica vidi na ekranu
+    function cardRect(card) {
+      if (!card) return null;
+      var img = card.querySelector(".fleet__media img");
+      if (!img) return null;
+      var r = img.getBoundingClientRect();
+      if (r.bottom < 0 || r.top > window.innerHeight || r.width === 0) return null;
+      return r;
+    }
+
+    // Slika "izraste" iz kartice u veliki kadar (i obrnuto pri zatvaranju)
+    function flipFrom(r) {
+      var f = frame.getBoundingClientRect();
+      return "translate(" + (r.left - f.left) + "px, " + (r.top - f.top) + "px) scale(" +
+        (r.width / f.width) + ", " + (r.height / f.height) + ")";
+    }
+
+    var fadeParts = [];
+    function parts() {
+      if (!fadeParts.length) {
+        fadeParts = [captionEl, thumbsEl, prevBtn, nextBtn, closeBtn];
+      }
+      return fadeParts;
     }
 
     function open(card) {
       lastFocus = card.querySelector(".fleet__btn") || document.activeElement;
+      openCard = card;
       vehicle = readCard(card);
       current = 0;
-      fillInfo();
-      render();
+      busy = false;
+      closing = false;
+      tagEl.textContent = vehicle.tag;
+      metaEl.textContent = vehicle.meta;
+      imgEl.src = vehicle.slides[0].src;
+      imgEl.alt = vehicle.slides[0].alt;
+      buildThumbs();
+      renderText();
+      // unapred učitaj ostale slike te kategorije da prelaz bude odmah
+      vehicle.slides.forEach(function (s) { var p = new Image(); p.src = s.src; });
       box.hidden = false;
+      box.scrollTop = 0;
       document.body.classList.add("has-lightbox");
-      closeBtn.focus();
+      closeBtn.focus({ preventScroll: true });
+
+      if (reduceMotion() || !box.animate) return;
+      box.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: "ease-out" });
+      var r = cardRect(card);
+      if (r) {
+        frame.animate([
+          { transform: flipFrom(r), borderRadius: "16px" },
+          { transform: "none" }
+        ], { duration: 560, easing: EASE });
+      } else {
+        frame.animate([
+          { transform: "translateY(24px) scale(0.94)", opacity: 0 },
+          { transform: "none", opacity: 1 }
+        ], { duration: 460, easing: EASE });
+      }
+      parts().forEach(function (el, i) {
+        el.animate([
+          { opacity: 0, translate: "0 12px" },
+          { opacity: 1, translate: "0 0" }
+        ], { duration: 420, delay: 200 + i * 50, easing: EASE, fill: "backwards" });
+      });
+    }
+
+    function finishClose() {
+      box.hidden = true;
+      closing = false;
+      document.body.classList.remove("has-lightbox");
+      box.getAnimations({ subtree: true }).forEach(function (a) { a.cancel(); });
+      if (lastFocus) lastFocus.focus({ preventScroll: true });
     }
 
     function close() {
-      box.hidden = true;
-      document.body.classList.remove("has-lightbox");
-      if (lastFocus) lastFocus.focus();
+      if (box.hidden || closing) return;
+      if (reduceMotion() || !box.animate) { finishClose(); return; }
+      closing = true;
+      var dur = 380;
+      parts().forEach(function (el) {
+        el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: "ease-in", fill: "forwards" });
+      });
+      var r = current === 0 ? cardRect(openCard) : null;
+      frame.animate(r ? [
+        { transform: "none" },
+        { transform: flipFrom(r), borderRadius: "16px" }
+      ] : [
+        { transform: "none", opacity: 1 },
+        { transform: "translateY(16px) scale(0.94)", opacity: 0 }
+      ], { duration: dur, easing: "cubic-bezier(0.4, 0, 0.2, 1)", fill: "forwards" });
+      var fade = box.animate([{ opacity: 1 }, { opacity: 0 }], {
+        duration: dur, delay: r ? 120 : 0, easing: "ease-in", fill: "forwards"
+      });
+      fade.onfinish = finishClose;
     }
 
     fleet.addEventListener("click", function (e) {
